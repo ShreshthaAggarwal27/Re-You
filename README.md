@@ -1,78 +1,77 @@
-DevMemory – AI-Powered Semantic Search for Codebases
+# 🚀 DevMemory – Your AI-Powered Developer Brain
 
-DevMemory is an AI-powered tool that helps developers instantly recall past implementations across multiple repositories. It extracts code, commits, and documentation from your projects, converts them into embeddings, and allows natural-language search using a Retrieval-Augmented Generation (RAG) pipeline.
+DevMemory is an AI-powered semantic search and code understanding engine that lets developers recall past implementations, retrieve code snippets, explore commit history, and understand features across repositories — all through natural language queries.
 
-🚀 Key Features
+It acts as a long-term memory layer for developers and teams.
 
-Semantic Search — Find code by meaning, not keywords
+---
 
-Code Snippet Retrieval — Returns relevant functions/classes with file paths
+## ✨ Features
 
-Commit Insight — Retrieve commit messages related to functionality
+- 🔍 **Semantic Search Across Repos** — Search by meaning, not just keywords.  
+- 🧠 **Contextual Q&A** — Ask “How does login work?” and get structured code answers.  
+- 📄 **Code Snippet Retrieval** with file paths and metadata.  
+- 🕒 **Commit Insights** — Understand how features changed over time.  
+- 📚 **Embeddings-Based Indexing** of functions, classes, and commits.  
+- ⚡ **RAG Pipeline** using Groq LLM + Chroma vector store.
 
-Contextual Q&A — Ask questions like “How is login implemented?”
+---
 
-Multi-Repo Support (Planned) — Unified memory across all your codebases
+## 🏗️ Architecture Overview
 
-🧠 How It Works
-1. Ingestion
+### **1. Data & Ingestion Layer**
+- GitHub repo cloning (local for MVP)  
+- Code extraction using AST (Python) & regex (JS)  
+- Commit extraction using Git  
+- Chunking functions/classes with metadata
 
-Extracts Python & JavaScript code using AST/regex
+### **2. Storage & Retrieval Layer**
+- Embeddings via MiniLM (current)  
+- ChromaDB as vector store  
+- Metadata stored alongside chunks  
+- Hybrid retrieval & reranking (future)
 
-Parses commit history via Git
+### **3. Query-Answering Layer**
+- Retrieval-Augmented Generation (RAG)  
+- LLM: Groq API (DeepSeek LLaMA model)  
+- Structured answers with citations  
+- CLI demo interface (frontend coming soon)
 
-Chunks code into functions/classes
+---
 
-2. Embeddings & Storage
+## 🚀 Getting Started
 
-Generates embeddings using MiniLM
-
-Stores vectors + metadata in ChromaDB
-
-3. Retrieval & Q&A
-
-Vector search retrieves top relevant chunks
-
-Results passed to LLM via Groq API for contextual answers
-
-⚙️ Setup Instructions
-Install dependencies
+### **1. Install dependencies**
+```bash
 pip install -r requirements.txt
+```
 
-Add your environment variables
-
+### **2. Set API Keys**
 Create a .env file:
+```ini
+GROQ_API_KEY=your_key_here
+```
 
-GROQ_API_KEY=your_api_key_here
-
-Run ingestion + embedding
+### **3. Generate embeddings**
+```bash
 python embeddings/store_embeddings.py
+```
 
-Run the QA interface
+### **4. Run the QA service**
+```bash
 python qa/qa_service.py
+```
 
-📌 Tech Stack
-
-Python, FastAPI (upcoming)
-
-ChromaDB for vector storage
-
-SentenceTransformers (MiniLM) for embeddings
-
-Groq API for LLM inference
-
-Tree-sitter (future multi-language support)
-
-🛣️ Future Enhancements
-
-Tree-sitter multi-language parsing
-
-Hybrid retrieval (semantic + keyword)
-
-Cross-encoder reranking
-
-Knowledge graph of function relationships
-
-Next.js frontend
-
-GitHub OAuth + incremental indexing
+## 📌 Project Structure
+```bash
+devmemory/
+│── extraction/
+│── embeddings/
+│── qa/
+│── retrieval/
+│── ingestion/
+│── vector_store/        # auto-generated
+│── data/repo/           # your cloned repo
+│── README.md
+│── requirements.txt
+```
