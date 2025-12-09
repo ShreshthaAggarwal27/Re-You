@@ -41,37 +41,75 @@ It acts as a long-term memory layer for developers and teams.
 
 ## 🚀 Getting Started
 
-### **1. Install dependencies**
+## ✅ **1. Create & Activate a Virtual Environment**
+
+### **Create a new environment**
+```bash
+python -m venv venv
+````
+
+### **Activate the environment (Git Bash)**
+
+```bash
+source venv/Scripts/activate
+```
+
+If using Linux/macOS:
+
+```bash
+source venv/bin/activate
+```
+
+---
+
+## ✅ **2. Install dependencies**
+
+Once your virtual environment is active:
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### **2. Set API Keys**
-Create a .env file:
+---
+
+## ✅ **3. Set API Keys**
+
+Create a `.env` file in the project root:
+
 ```ini
 GROQ_API_KEY=your_key_here
+GITHUB_ACCESS_TOKEN=your_github_access_token
 ```
 
-### **3. Generate embeddings**
+---
+
+## ✅ **4. Generate embeddings**
+
 ```bash
 python embeddings/store_embeddings.py
 ```
 
-### **4. Run the QA service**
+---
+
+## ✅ **5. Run the QA service**
+
 ```bash
 python qa/qa_service.py
 ```
 
-## 📌 Project Structure
+---
+
+# 📌 Project Structure
+
 ```bash
 devmemory/
-│── extraction/
-│── embeddings/
-│── qa/
-│── retrieval/
-│── ingestion/
-│── vector_store/        # auto-generated
-│── data/repo/           # your cloned repo
+│── extraction/          # Code + commit extraction
+│── embeddings/          # Chunking + vector generation
+│── qa/                  # RAG pipeline / answer generation
+│── retrieval/           # Retrieval logic (vector search)
+│── ingestion/           # Repo ingestion + parsing
+│── vector_store/        # Auto-generated embeddings DB
+│── data/repo/           # Your cloned GitHub repo
 │── README.md
 │── requirements.txt
 ```
