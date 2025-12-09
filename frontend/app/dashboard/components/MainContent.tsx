@@ -1,6 +1,7 @@
 "use client"
 
 import { User as UserIcon, Send, Loader2, BookOpen, History, Plus, FolderOpen } from "lucide-react"
+import MarkdownMessage from "@/components/MarkdownMessage"
 
 type Message = {
   role: "user" | "assistant"
@@ -158,7 +159,8 @@ export default function MainContent({
                               : "bg-slate-900/70 border border-slate-800"
                           }`}
                         >
-                          {msg.content}
+                          {/* {msg.content} */}
+                          <MarkdownMessage content={msg.content} />
                         </div>
                         {msg.timestamp && (
                           <p className="text-[10px] text-slate-500 mt-1 px-1">
