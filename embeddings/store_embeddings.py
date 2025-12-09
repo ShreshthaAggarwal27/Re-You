@@ -1,5 +1,9 @@
 import sys
 import os
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+os.environ["HF_HUB_DISABLE_XET_WARNING"] = "1"
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -22,7 +26,12 @@ def create_vector_store():
     os.makedirs("vector_store", exist_ok=True)
 
     # ✅ Model for embeddings
-    model = SentenceTransformer("all-MiniLM-L6-v2")
+    # model = SentenceTransformer("all-MiniLM-L6-v2")
+    model = SentenceTransformer(
+        "sentence-transformers/all-MiniLM-L6-v2",
+        cache_folder="./hf_cache",
+        use_auth_token=None
+    )
 
     # ✅ Initialize Chroma (local)
     client = PersistentClient(path="vector_store", settings=Settings(anonymized_telemetry=False))

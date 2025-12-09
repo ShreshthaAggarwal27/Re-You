@@ -12,3 +12,9 @@ vector_store/
 venv/
 __pycache__/
 backend/.env
+.env
+myenv/
+hf_cache/
+backend/devmemory.db
+frontend/node_modules/
+frontend/.env.local

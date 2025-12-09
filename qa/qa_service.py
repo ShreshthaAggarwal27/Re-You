@@ -23,10 +23,9 @@ vectorstore = Chroma(
 )
 
 llm = ChatGroq(
-    model="deepseek-r1-distill-llama-70b",
+    model="groq/compound",
     temperature=0,
     max_tokens=None,
-    reasoning_format="parsed",
     timeout=None,
     api_key=GROQ_API_KEY,
 )
