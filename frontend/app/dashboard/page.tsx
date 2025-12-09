@@ -143,30 +143,85 @@ export default function DashboardPage() {
     }
   }, [loading, error])
 
-  const handleSend = async () => {
-    if (!input.trim() || isSending) return
+  // const handleSend = async () => {
+  //   if (!input.trim() || isSending) return
 
-    const text = input.trim()
+  //   const text = input.trim()
+  //   const userMessage: Message = {
+  //     role: "user",
+  //     content: text,
+  //     timestamp: new Date(),
+  //   }
+
+  //   setMessages((prev) => [...prev, userMessage])
+  //   setInput("")
+  //   setIsSending(true)
+
+  //   setTimeout(() => {
+  //     const reply: Message = {
+  //       role: "assistant",
+  //       content: `I would now search across your indexed repositories for: "${text}". In the final version, you'd see code snippets, file paths, and commit history here.`,
+  //       timestamp: new Date(),
+  //     }
+  //     setMessages((prev) => [...prev, reply])
+  //     setIsSending(false)
+  //   }, 800)
+  // }
+
+  const handleSend = async () => {
+    if (!input.trim() || isSending) return;
+
+    const text = input.trim();
+
+    // 1. Add user message immediately
     const userMessage: Message = {
       role: "user",
       content: text,
       timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, userMessage]);
+
+    setInput("");
+    setIsSending(true);
+
+    try {
+      const token = localStorage.getItem("devmemory_token");
+
+      const res = await fetch("http://localhost:8000/chat/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ question: text }),
+      });
+
+      const data = await res.json();
+
+      // 2. Show answer from backend
+      const assistantMessage: Message = {
+        role: "assistant",
+        content: data.answer || "No answer returned from backend.",
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+
+    } catch (err) {
+      console.error("Chat error:", err);
+
+      const errorMessage: Message = {
+        role: "assistant",
+        content:
+          "⚠️ Unable to reach backend. Make sure FastAPI (port 8000) is running.",
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
     }
 
-    setMessages((prev) => [...prev, userMessage])
-    setInput("")
-    setIsSending(true)
-
-    setTimeout(() => {
-      const reply: Message = {
-        role: "assistant",
-        content: `I would now search across your indexed repositories for: "${text}". In the final version, you'd see code snippets, file paths, and commit history here.`,
-        timestamp: new Date(),
-      }
-      setMessages((prev) => [...prev, reply])
-      setIsSending(false)
-    }, 800)
-  }
+    setIsSending(false);
+  };
 
   const startNewChat = () => {
     if (!user) return
