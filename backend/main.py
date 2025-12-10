@@ -1,3 +1,4 @@
+import chat.models;
 import sys
 import os
 

@@ -10,6 +10,8 @@ import {
   FolderOpen,
 } from "lucide-react";
 import MarkdownMessage from "@/components/MarkdownMessage";
+import HistoryPanel from "./HistoryPanel";
+import type { ChatSession } from "@/lib/chatApi";
 
 type Message = {
   role: "user" | "assistant";
@@ -43,6 +45,8 @@ interface MainContentProps {
   userRepositories: Repository[];
   toggleRepoSelection: (repo: Repository) => void;
   setShowRepoSetup: (show: boolean) => void;
+  chatSessions: ChatSession[];
+  onOpenSession: (id: number) => void;
 }
 
 export default function MainContent({
@@ -59,6 +63,8 @@ export default function MainContent({
   userRepositories,
   toggleRepoSelection,
   setShowRepoSetup,
+  chatSessions,
+  onOpenSession,
 }: MainContentProps) {
   const sendOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -308,9 +314,7 @@ export default function MainContent({
 
 
         {activeTab === "history" && (
-          <div className="h-full p-8 flex items-center justify-center text-center text-sm text-slate-300">
-            {/* unchanged… */}
-          </div>
+          <HistoryPanel sessions={chatSessions} onOpenSession={onOpenSession} />
         )}
       </div>
     </section>

@@ -1,94 +1,107 @@
-"use client"
+"use client";
 
-import { useEffect, useState, useRef } from "react"
-import Sidebar from "./components/Sidebar"
-import MainContent from "./components/MainContent"
-import SetupModal from "./components/SetupModal"
+import { useEffect, useState, useRef } from "react";
+import Sidebar from "./components/Sidebar";
+import MainContent from "./components/MainContent";
+import SetupModal from "./components/SetupModal";
+import {
+  listChatSessions,
+  createChatSession,
+  sendChatMessage,
+  getChatSession,
+  type ChatSession,
+} from "@/lib/chatApi";
 
 type User = {
-  id: number
-  username: string
-  avatar: string
-  needs_setup: boolean
-}
+  id: number;
+  username: string;
+  avatar: string;
+  needs_setup: boolean;
+};
 
 type Repository = {
-  id: number
-  github_repo_id: number
-  name: string
-  full_name: string
-  indexed: boolean
-  last_indexed?: string
-  selected: boolean
-}
+  id: number;
+  github_repo_id: number;
+  name: string;
+  full_name: string;
+  indexed: boolean;
+  last_indexed?: string;
+  selected: boolean;
+};
 
 type Message = {
-  role: "user" | "assistant"
-  content: string
-  timestamp?: Date
-}
+  role: "user" | "assistant";
+  content: string;
+  timestamp?: Date;
+};
 
-type TabId = "chat" | "repos" | "history"
+type TabId = "chat" | "repos" | "history";
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<User | null>(null)
-  const [userRepositories, setUserRepositories] = useState<Repository[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [showRepoSetup, setShowRepoSetup] = useState(false)
+  const [user, setUser] = useState<User | null>(null);
+  const [userRepositories, setUserRepositories] = useState<Repository[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showRepoSetup, setShowRepoSetup] = useState(false);
 
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState("")
-  const [isSending, setIsSending] = useState(false)
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<TabId>("chat")
+  const [activeTab, setActiveTab] = useState<TabId>("chat");
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement | null>(null)
-  const inputRef = useRef<HTMLInputElement | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   // ---- Fetch /me on mount ----
   useEffect(() => {
-    const token = typeof window !== "undefined"
-      ? localStorage.getItem("devmemory_token")
-      : null
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("devmemory_token")
+        : null;
 
     if (!token) {
-      setError("No session found. Please login again.")
-      setLoading(false)
-      return
+      setError("No session found. Please login again.");
+      setLoading(false);
+      return;
     }
 
-    ;(async () => {
+    (async () => {
       try {
         const res = await fetch("http://localhost:8000/me", {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-        })
+        });
 
         if (res.status === 401) {
-          localStorage.removeItem("devmemory_token")
-          window.location.href = "/"
-          return
+          localStorage.removeItem("devmemory_token");
+          window.location.href = "/";
+          return;
         }
 
         if (!res.ok) {
-          throw new Error(`Failed to load user: HTTP ${res.status}`)
+          throw new Error(`Failed to load user: HTTP ${res.status}`);
         }
 
-        const data = await res.json()
-        setUser(data)
-        setError(null)
-        
-        // Check if user has repositories data
+        const data = await res.json();
+        setUser(data);
+        setError(null);
+
         if (data.repositories) {
-          setUserRepositories(data.repositories)
+          setUserRepositories(data.repositories);
         }
-        
+
         if (data.needs_setup) {
-          setShowRepoSetup(true)
+          setShowRepoSetup(true);
         }
+
+        // Load chat sessions
+        const sessions = await listChatSessions(token);
+        setChatSessions(sessions);
 
         setMessages([
           {
@@ -96,19 +109,19 @@ export default function DashboardPage() {
             content: `Welcome, ${data.username}! I'm your DevMemory assistant. Ask me anything about your code.`,
             timestamp: new Date(),
           },
-        ])
+        ]);
       } catch (err: any) {
-        console.error(err)
-        setError(err.message || "Failed to load dashboard")
+        console.error(err);
+        setError(err.message || "Failed to load dashboard");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    })()
-  }, [])
+    })();
+  }, []);
 
   const refreshUserData = async () => {
-    const token = localStorage.getItem("devmemory_token")
-    if (!token) return
+    const token = localStorage.getItem("devmemory_token");
+    if (!token) return;
 
     try {
       const res = await fetch("http://localhost:8000/me", {
@@ -116,19 +129,19 @@ export default function DashboardPage() {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-      })
+      });
 
       if (res.ok) {
-        const data = await res.json()
-        setUser(data)
+        const data = await res.json();
+        setUser(data);
         if (data.repositories) {
-          setUserRepositories(data.repositories)
+          setUserRepositories(data.repositories);
         }
       }
     } catch (err) {
-      console.error("Failed to refresh user data:", err)
+      console.error("Failed to refresh user data:", err);
     }
-  }
+  };
 
   const hasIndexingInProgress = userRepositories.some(
     (r) => r.selected && !r.indexed
@@ -147,23 +160,23 @@ export default function DashboardPage() {
   // Scroll to bottom on new messages
   useEffect(() => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages])
+  }, [messages]);
 
-  // Focus input when ready
+  // Focus input
   useEffect(() => {
     if (!loading && !error) {
-      inputRef.current?.focus()
+      inputRef.current?.focus();
     }
-  }, [loading, error])
+  }, [loading, error]);
 
+  // ---- Send Message ----
   const handleSend = async () => {
     if (!input.trim() || isSending) return;
 
     const text = input.trim();
 
-    // 1. Add user message immediately
     const userMessage: Message = {
       role: "user",
       content: text,
@@ -174,21 +187,24 @@ export default function DashboardPage() {
     setInput("");
     setIsSending(true);
 
+    const token = localStorage.getItem("devmemory_token");
+    if (!token) {
+      setIsSending(false);
+      return;
+    }
+
     try {
-      const token = localStorage.getItem("devmemory_token");
+      const data = await sendChatMessage(token, text, currentSessionId);
 
-      const res = await fetch("http://localhost:8000/chat/query", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ question: text }),
-      });
+      if (!data) throw new Error("Empty backend response");
 
-      const data = await res.json();
+      if (!currentSessionId && data.session_id) {
+        setCurrentSessionId(data.session_id);
 
-      // 2. Show answer from backend
+        const sessions = await listChatSessions(token);
+        setChatSessions(sessions);
+      }
+
       const assistantMessage: Message = {
         role: "assistant",
         content: data.answer || "No answer returned from backend.",
@@ -196,14 +212,12 @@ export default function DashboardPage() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
-
     } catch (err) {
       console.error("Chat error:", err);
 
       const errorMessage: Message = {
         role: "assistant",
-        content:
-          "⚠️ Unable to reach backend. Make sure FastAPI (port 8000) is running.",
+        content: "⚠️ Unable to reach backend.",
         timestamp: new Date(),
       };
 
@@ -213,57 +227,103 @@ export default function DashboardPage() {
     setIsSending(false);
   };
 
+  // ---- Start New Chat ----
   const startNewChat = () => {
-    if (!user) return
-    setMessages([
-      {
-        role: "assistant",
-        content: `New chat started. What do you want to explore in your code today, ${user.username}?`,
-        timestamp: new Date(),
-      },
-    ])
-  }
+    if (!user) return;
+
+    const token = localStorage.getItem("devmemory_token");
+    if (!token) return;
+
+    (async () => {
+      try {
+        const session = await createChatSession(
+          token,
+          `Chat with ${user.username}`
+        );
+
+        if (session) {
+          setCurrentSessionId(session.id);
+
+          const sessions = await listChatSessions(token);
+          setChatSessions(sessions);
+        }
+
+        setMessages([
+          {
+            role: "assistant",
+            content: `New chat started. What do you want to explore in your code today, ${user.username}?`,
+            timestamp: new Date(),
+          },
+        ]);
+      } catch (err) {
+        console.error("Failed to create chat session", err);
+      }
+    })();
+  };
+
+  // ---- Open a Chat Session ----
+  const openSession = async (sessionId: number) => {
+    const token = localStorage.getItem("devmemory_token");
+    if (!token) return;
+
+    try {
+      const data = await getChatSession(sessionId, token);
+      if (!data) return;
+
+      setCurrentSessionId(data.id);
+
+      setMessages(
+        data.messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.created_at ? new Date(m.created_at) : undefined,
+        }))
+      );
+
+      setActiveTab("chat");
+    } catch (err) {
+      console.error("Failed to open session", err);
+    }
+  };
 
   const logout = () => {
     if (typeof window !== "undefined") {
-      localStorage.removeItem("devmemory_token")
-      window.location.href = "/"
+      localStorage.removeItem("devmemory_token");
+      window.location.href = "/";
     }
-  }
+  };
 
   const formatTime = (date?: Date) =>
-    date ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""
+    date
+      ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : "";
 
   const toggleRepoSelection = async (repo: Repository) => {
-  const token = localStorage.getItem("devmemory_token");
-  if (!token) return;
+    const token = localStorage.getItem("devmemory_token");
+    if (!token) return;
 
-  try {
-    // optimistic UI update
-    setUserRepositories((prev) =>
-      prev.map((r) =>
-        r.id === repo.id ? { ...r, selected: !r.selected } : r
-      )
-    );
+    try {
+      setUserRepositories((prev) =>
+        prev.map((r) =>
+          r.id === repo.id ? { ...r, selected: !r.selected } : r
+        )
+      );
 
-    await fetch("http://localhost:8000/repos/toggle", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        repository_id: repo.id,
-        selected: !repo.selected,
-      }),
-    });
-
-  } catch (err) {
-    console.error("Failed to toggle repo", err);
-    // optional rollback here
-  }
-};
-
+      await fetch("http://localhost:8000/repos/toggle", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          repository_id: repo.id,
+          selected: !repo.selected,
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to toggle repo", err);
+    }
+  };
 
   if (loading) {
     return (
@@ -279,13 +339,15 @@ export default function DashboardPage() {
                 height={60}
                 className="animate-pulse"
               />
-              <p className="text-slate-300 font-medium">Loading your dashboard…</p>
+              <p className="text-slate-300 font-medium">
+                Loading your dashboard…
+              </p>
             </div>
           </div>
           <div className="w-6 h-6 animate-spin text-cyan-400 mx-auto border-2 border-cyan-400 border-t-transparent rounded-full" />
         </div>
       </div>
-    )
+    );
   }
 
   if (error || !user) {
@@ -296,7 +358,9 @@ export default function DashboardPage() {
           <h2 className="text-xl font-semibold text-slate-100 mb-2">
             Couldn&apos;t load dashboard
           </h2>
-          <p className="text-slate-400 mb-6 text-sm">{error || "Unknown error"}</p>
+          <p className="text-slate-400 mb-6 text-sm">
+            {error || "Unknown error"}
+          </p>
           <button
             onClick={() => (window.location.href = "/")}
             className="px-5 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg text-sm font-medium hover:from-cyan-400 hover:to-blue-400 transition"
@@ -305,9 +369,8 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
-    )
+    );
   }
-
   return (
     <main className="min-h-screen bg-black text-slate-100">
       <SetupModal
@@ -324,7 +387,7 @@ export default function DashboardPage() {
           logout={logout}
           openRepoManagement={() => setShowRepoSetup(true)}
         />
-        
+
         <MainContent
           activeTab={activeTab}
           setActiveTab={setActiveTab}
@@ -339,8 +402,10 @@ export default function DashboardPage() {
           userRepositories={userRepositories}
           setShowRepoSetup={setShowRepoSetup}
           toggleRepoSelection={toggleRepoSelection}
+          chatSessions={chatSessions}          // ⬅ NEW
+          onOpenSession={openSession}
         />
       </div>
     </main>
-  )
+  );
 }
