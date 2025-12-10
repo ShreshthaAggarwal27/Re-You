@@ -1,6 +1,6 @@
-# 🚀 DevMemory – Your AI-Powered Developer Brain
+# 🚀 Re:You – Your AI-Powered Developer Brain
 
-DevMemory is an AI-powered semantic search and code understanding engine that lets developers recall past implementations, retrieve code snippets, explore commit history, and understand features across repositories — all through natural language queries.
+Re:You is an AI-powered semantic search and code understanding engine that lets developers recall past implementations, retrieve code snippets, explore commit history, and understand features across repositories — all through natural language queries.
 
 It acts as a long-term memory layer for developers and teams.
 
