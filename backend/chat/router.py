@@ -1,24 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 from auth.jwt import get_current_user
+from database import get_db
 from qa.qa_service import answer_question
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-class QueryRequest(BaseModel):
+
+class ChatRequest(BaseModel):
     question: str
 
-@router.post("/query")
-def chat_query(request: QueryRequest, user=Depends(get_current_user)):
-    try:
-        # response = answer_question(request.question, user.id)
-        response = answer_question(request.question)
 
-        return {
-            "answer": response.get("answer", "No answer."),
-            "sources": response.get("sources", []),
-            "snippets": response.get("snippets", [])
-        }
+@router.post("/query")
+def query_chat(payload: ChatRequest, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        response = answer_question(payload.question, user, db)
+        return {"answer": response["answer"]}
     except Exception as e:
         print("CHAT ERROR:", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"answer": "Internal error. Check backend logs."}

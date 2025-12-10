@@ -116,21 +116,21 @@ def extract_commits(repo_path):
     return commits
 
 
-def run_extraction():
-    if not REPO_PATH.exists():
-        raise FileNotFoundError("Repo not found! Make sure you ran clone_repo.py")
+def run_extraction(repo_path: Path):
+    repo_path = Path(repo_path)
+
+    if not repo_path.exists():
+        raise FileNotFoundError(f"Repo path not found: {repo_path}")
 
     all_chunks = []
 
-    for file_path in REPO_PATH.rglob("*.py"):
+    for file_path in repo_path.rglob("*.py"):
         all_chunks.extend(extract_python_functions(file_path))
 
-    for file_path in REPO_PATH.rglob("*.js"):
+    for file_path in repo_path.rglob("*.js"):
         all_chunks.extend(extract_js_functions(file_path))
 
-
-
-    commits = extract_commits(REPO_PATH)
+    commits = extract_commits(repo_path)
 
     print(f"✅ Extracted {len(all_chunks)} code chunks (functions/classes)")
     print(f"✅ Extracted {len(commits)} commits")

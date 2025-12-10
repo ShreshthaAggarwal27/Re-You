@@ -1,103 +1,106 @@
-import os
-from dotenv import load_dotenv
-from langchain_groq import ChatGroq
-from langchain.chains import RetrievalQA
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import SentenceTransformerEmbeddings
 from chromadb import PersistentClient
+from chromadb.config import Settings
+from sentence_transformers import SentenceTransformer
+from sqlalchemy.orm import Session
+from repositories.model import Repository
+import os
 
-load_dotenv()
+MODEL = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
-# ---------- API Key ----------
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-if not GROQ_API_KEY:
-    raise ValueError("Please set your GROQ_API_KEY in .env file")
+def load_vectorstore(repo_id: int):
+    path = f"vector_store/{repo_id}"
 
-# ---------- Embeddings ----------
-embedding_model = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+    if not os.path.exists(path):
+        print(f"❌ Vector store missing for repo {repo_id}")
+        return None, None
 
-# ---------- Chroma DB ----------
-client = PersistentClient(path="vector_store")
-collection = client.get_collection("devmemory")
+    client = PersistentClient(path=path, settings=Settings(anonymized_telemetry=False))
 
-vectorstore = Chroma(
-    client=client,
-    collection_name="devmemory",
-    embedding_function=embedding_model
-)
+    try:
+        col = client.get_collection("devmemory")
+    except:
+        print(f"❌ Collection missing for repo {repo_id}")
+        return None, None
 
-# ---------- LLM ----------
-llm = ChatGroq(
-    model="groq/compound",
-    temperature=0,
-    max_tokens=None,
-    timeout=None,
-    api_key=GROQ_API_KEY,
-)
-
-# ---------- Retrieval Chain ----------
-qa_chain = RetrievalQA.from_chain_type(
-    llm=llm,
-    retriever=vectorstore.as_retriever(search_kwargs={
-        "k": 5,
-        "filter": {"type": {"$ne": "commit"}}
-    }),
-    chain_type="stuff",
-    return_source_documents=True
-)
+    return client, col
 
 
-# ============================================================
-#   MAIN FUNCTION used by backend routes
-# ============================================================
-def answer_question(question: str):
-    """
-    Runs retrieval + LLM reasoning and returns structured output.
-    """
+# def answer_question(question: str, user, db: Session):
+#     # 1️⃣ Get user-selected repos
+#     repos = db.query(Repository).filter(
+#         Repository.user_id == user.id,
+#         Repository.selected == True
+#     ).all()
 
-    prompt = f"""
-    You are a code assistant. Search through code snippets and return only relevant code blocks.
-    Question: {question}
-    """
+#     if not repos:
+#         return "You have no repositories selected. Run setup first."
 
-    result = qa_chain.invoke({"query": prompt})
+#     # 2️⃣ Search each repo
+#     best_results = []
 
-    final_answer = result["result"]
-    source_docs = result["source_documents"]
+#     for repo in repos:
+#         client, col = load_vectorstore(repo.id)
+#         if col is None:
+#             continue
 
-    # Extract source metadata and code snippets cleanly
-    retrieved_docs = []
-    code_blocks = []
+#         result = col.query(
+#             query_texts=[question],
+#             n_results=3
+#         )
 
-    for doc in source_docs:
-        retrieved_docs.append({
-            "text": doc.page_content,
-            "metadata": doc.metadata
-        })
-        code_blocks.append(doc.page_content)
+#         best_results.append((repo.full_name, result))
 
-    # ---------- RETURN FORMAT EXPECTED BY FRONTEND ----------
-    return {
-        "answer": final_answer,
-        "sources": retrieved_docs,
-        "snippets": code_blocks
-    }
+#     if not best_results:
+#         return "No embeddings found for selected repositories. Run setup again."
 
+#     # 3️⃣ Format results
+#     answer = "Here is what I found:\n\n"
 
-# Keep the CLI mode for debugging
-if __name__ == "__main__":
-    print("🟢 Re:You is Ready!")
-    while True:
-        query = input("\n ❓ Ask a question (or type 'exit'): ")
-        if query.lower() in ["exit", "quit"]:
-            break
+#     for repo_name, res in best_results:
+#         answer += f"\n📁 **{repo_name}**:\n"
+#         documents = res["documents"][0]
+#         for doc in documents:
+#             answer += f"---\n{doc}\n"
 
-        response = answer_question(query)
+#     return answer
 
-        print("\n✅ Answer:")
-        print(response["answer"])
+def answer_question(question: str, user, db: Session):
+    # 1️⃣ Get user-selected repos
+    repos = db.query(Repository).filter(
+        Repository.user_id == user.id,
+        Repository.selected == True
+    ).all()
 
-        print("\n📄 Sources:")
-        for src in response["sources"]:
-            snippet = src["text"][:250] + "..."
-            print(f" - {src['metadata']} | {snippet}")
+    if not repos:
+        return {"answer": "You have no repositories selected. Run setup first."}
+
+    best_results = []
+
+    # 2️⃣ Run RAG search on each repo
+    for repo in repos:
+        client, col = load_vectorstore(repo.id)
+        if col is None:
+            continue
+
+        result = col.query(
+            query_texts=[question],
+            n_results=3
+        )
+
+        best_results.append((repo.full_name, result))
+
+    if not best_results:
+        return {"answer": "No embeddings found for selected repositories."}
+
+    # 3️⃣ Build clean markdown answer
+    final = ""
+
+    for repo_name, res in best_results:
+        final += f"### 📁 {repo_name}\n\n"
+        docs = res["documents"][0]
+
+        for doc in docs:
+            final += f"```txt\n{doc}\n```\n\n"
+
+    # MUST return a dict so router can access response["answer"]
+    return {"answer": final}

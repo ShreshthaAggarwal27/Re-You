@@ -1,53 +1,43 @@
-import sys
 import os
-os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
-os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
-os.environ["HF_HUB_DISABLE_XET_WARNING"] = "1"
-os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-import json
+from pathlib import Path
 from chromadb import PersistentClient
 from chromadb.config import Settings
-from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from extraction.extract_data import run_extraction
 
+VECTOR_BASE_DIR = "vector_store"
 
-# Load environment variables
-load_dotenv()
+def create_vector_store(repo_id: int, repo_path: str):
+    repo_path = Path(repo_path)
 
-def create_vector_store():
-    # Run extraction to get chunks & commits
-    code_chunks, commits = run_extraction()
+    if not repo_path.exists():
+        raise FileNotFoundError(f"❌ Repo folder missing: {repo_path}")
 
-    # ✅ Make sure the folder exists
-    os.makedirs("vector_store", exist_ok=True)
+    # Extract code + commits
+    code_chunks, commits = run_extraction(repo_path)
 
-    # ✅ Model for embeddings
-    # model = SentenceTransformer("all-MiniLM-L6-v2")
-    model = SentenceTransformer(
-        "sentence-transformers/all-MiniLM-L6-v2",
-        cache_folder="./hf_cache",
-        use_auth_token=None
+    # Make folder: vector_store/<repo_id>/
+    persist_dir = Path(VECTOR_BASE_DIR) / str(repo_id)
+    persist_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load embedding model
+    model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
+    # Init chroma
+    client = PersistentClient(
+        path=str(persist_dir),
+        settings=Settings(anonymized_telemetry=False)
     )
 
-    # ✅ Initialize Chroma (local)
-    client = PersistentClient(path="vector_store", settings=Settings(anonymized_telemetry=False))
+    collection = client.get_or_create_collection("devmemory")
 
-    # ✅ Create or get collection
-    collection = client.get_or_create_collection(name="devmemory")
-
-    # ✅ Prepare and insert embeddings
     documents = []
     metadatas = []
     ids = []
 
-    # Code chunks
+    # Add code chunks
     for i, chunk in enumerate(code_chunks):
-        text = chunk["code"]
-        documents.append(text)
+        documents.append(chunk["code"])
         metadatas.append({
             "type": chunk["type"],
             "language": chunk["language"],
@@ -56,10 +46,9 @@ def create_vector_store():
         })
         ids.append(f"code_{i}")
 
-    # Commit messages
+    # Add commits
     for i, commit in enumerate(commits):
-        text = commit["message"]
-        documents.append(text)
+        documents.append(commit["message"])
         metadatas.append({
             "type": "commit",
             "sha": commit["sha"],
@@ -67,10 +56,9 @@ def create_vector_store():
         })
         ids.append(f"commit_{i}")
 
-    print(f"✅ Generating embeddings for {len(documents)} items...")
+    print(f"🔧 Generating embeddings for repo {repo_id} ({len(documents)} items)…")
     embeddings = model.encode(documents, show_progress_bar=True)
 
-    # ✅ Insert into Chroma
     collection.add(
         documents=documents,
         embeddings=embeddings,
@@ -78,11 +66,4 @@ def create_vector_store():
         ids=ids
     )
 
-    print(f"Code chunks extracted: {len(code_chunks)}")
-    print(f"First 3 chunks: {code_chunks[:3]}")
-
-    print("✅ Stored embeddings in ChromaDB!")
-    print("🟢 Vector store saved to:", os.path.abspath("vector_store"))
-
-if __name__ == "__main__":
-    create_vector_store()
+    print(f"🟢 Embeddings stored in: {persist_dir}")
