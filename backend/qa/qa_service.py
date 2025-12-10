@@ -1,13 +1,30 @@
+import os
 from chromadb import PersistentClient
 from chromadb.config import Settings
-from sentence_transformers import SentenceTransformer
 from sqlalchemy.orm import Session
+from sentence_transformers import SentenceTransformer
 from repositories.model import Repository
-import os
+from langchain_groq import ChatGroq
+from dotenv import load_dotenv
 
+load_dotenv()
+
+# -------- LLM --------
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+llm = ChatGroq(
+    api_key=GROQ_API_KEY,
+    model="groq/compound",
+    temperature=0,
+)
+
+# -------- Embeddings --------
 MODEL = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
+
 def load_vectorstore(repo_id: int):
+    """
+    Load the vector store for a specific repo (vector_store/<repo_id>)
+    """
     path = f"vector_store/{repo_id}"
 
     if not os.path.exists(path):
@@ -25,47 +42,15 @@ def load_vectorstore(repo_id: int):
     return client, col
 
 
-# def answer_question(question: str, user, db: Session):
-#     # 1️⃣ Get user-selected repos
-#     repos = db.query(Repository).filter(
-#         Repository.user_id == user.id,
-#         Repository.selected == True
-#     ).all()
-
-#     if not repos:
-#         return "You have no repositories selected. Run setup first."
-
-#     # 2️⃣ Search each repo
-#     best_results = []
-
-#     for repo in repos:
-#         client, col = load_vectorstore(repo.id)
-#         if col is None:
-#             continue
-
-#         result = col.query(
-#             query_texts=[question],
-#             n_results=3
-#         )
-
-#         best_results.append((repo.full_name, result))
-
-#     if not best_results:
-#         return "No embeddings found for selected repositories. Run setup again."
-
-#     # 3️⃣ Format results
-#     answer = "Here is what I found:\n\n"
-
-#     for repo_name, res in best_results:
-#         answer += f"\n📁 **{repo_name}**:\n"
-#         documents = res["documents"][0]
-#         for doc in documents:
-#             answer += f"---\n{doc}\n"
-
-#     return answer
-
 def answer_question(question: str, user, db: Session):
-    # 1️⃣ Get user-selected repos
+    """
+    Multi-repo RAG:
+    - Retrieve top docs from each repo
+    - Merge retrieved docs
+    - Feed to Groq LLM for final answer
+    """
+
+    # 1️⃣ Find user-selected repositories
     repos = db.query(Repository).filter(
         Repository.user_id == user.id,
         Repository.selected == True
@@ -74,9 +59,10 @@ def answer_question(question: str, user, db: Session):
     if not repos:
         return {"answer": "You have no repositories selected. Run setup first."}
 
-    best_results = []
+    # 2️⃣ Retrieve from each repo
+    retrieved_context = []
+    sources = []
 
-    # 2️⃣ Run RAG search on each repo
     for repo in repos:
         client, col = load_vectorstore(repo.id)
         if col is None:
@@ -87,20 +73,43 @@ def answer_question(question: str, user, db: Session):
             n_results=3
         )
 
-        best_results.append((repo.full_name, result))
-
-    if not best_results:
-        return {"answer": "No embeddings found for selected repositories."}
-
-    # 3️⃣ Build clean markdown answer
-    final = ""
-
-    for repo_name, res in best_results:
-        final += f"### 📁 {repo_name}\n\n"
-        docs = res["documents"][0]
+        docs = result["documents"][0]
 
         for doc in docs:
-            final += f"```txt\n{doc}\n```\n\n"
+            retrieved_context.append(doc)
+            sources.append({"repo": repo.full_name, "text": doc})
 
-    # MUST return a dict so router can access response["answer"]
-    return {"answer": final}
+    if not retrieved_context:
+        return {"answer": "No relevant code found in selected repositories."}
+
+    # 3️⃣ Build context block
+    context_block = "\n\n".join([f"---\n{c}" for c in retrieved_context])
+
+    # 4️⃣ Build LLM prompt
+    prompt = f"""
+You are an expert AI coding assistant.
+
+You must answer the user's question based ONLY on the retrieved code snippets.
+If useful, include code blocks using triple backticks.
+
+User Question:
+{question}
+
+Relevant Code Snippets:
+{context_block}
+
+Provide:
+- Clear explanation
+- Referenced code blocks
+- File or function names if detectable
+"""
+
+    # 5️⃣ Generate answer from Groq LLM
+    llm_answer = llm.invoke(prompt).content
+
+    # 6️⃣ Return structured response for UI
+    return {
+        "answer": llm_answer,
+        "sources": sources,
+        "snippets": retrieved_context,
+    }
