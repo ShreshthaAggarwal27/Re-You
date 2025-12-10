@@ -1,5 +1,6 @@
 # Do not commit cloned repos
 data/repo/
+backend/data/repos/
 
 # Do not commit language grammars or vendor repos
 extraction/tree-sitter-javascript/
